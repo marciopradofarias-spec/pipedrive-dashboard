@@ -6,14 +6,17 @@ import {
   CardContent,
   Typography,
   Box,
-  CircularProgress,
   Alert,
   Grid,
+  Fade,
+  Grow,
+  LinearProgress,
 } from '@mui/material';
-import { TrendingUp, AttachMoney, Assessment } from '@mui/icons-material';
-import { FunnelChart, Funnel, LabelList, Tooltip, ResponsiveContainer } from 'recharts';
+import { TrendingUp, AttachMoney, Assessment, Timeline } from '@mui/icons-material';
 import Layout from '@/components/Layout';
-import MetricCard from '@/components/MetricCard';
+import EnhancedMetricCard from '@/components/EnhancedMetricCard';
+import CustomTable from '@/components/CustomTable';
+import DashboardSkeleton from '@/components/DashboardSkeleton';
 
 interface Metrics {
   general: {
@@ -64,16 +67,6 @@ export default function PipelinePage() {
     }).format(value);
   };
 
-  if (loading && !metrics) {
-    return (
-      <Layout>
-        <Box display="flex" justifyContent="center" alignItems="center" minHeight="80vh">
-          <CircularProgress size={60} />
-        </Box>
-      </Layout>
-    );
-  }
-
   if (error) {
     return (
       <Layout>
@@ -84,10 +77,10 @@ export default function PipelinePage() {
     );
   }
 
-  if (!metrics) {
+  if (loading || !metrics) {
     return (
       <Layout>
-        <Alert severity="warning">Nenhuma métrica disponível</Alert>
+        <DashboardSkeleton />
       </Layout>
     );
   }
@@ -101,117 +94,234 @@ export default function PipelinePage() {
     0
   );
 
-  // Prepare funnel data
-  const funnelData = metrics.closing_pipeline_summary.map((stage) => ({
-    name: stage.stage_name,
-    value: stage.deal_count,
-    fill: stage.stage_name === 'Oportunidade' ? '#28a745' : stage.stage_name === 'Negociação' ? '#ffc107' : '#007bff',
-  }));
+  const tableColumns = [
+    {
+      id: 'stage_name',
+      label: 'Estágio',
+      align: 'left' as const,
+      renderCell: (value: string) => (
+        <Typography sx={{ fontWeight: 600 }}>
+          {value}
+        </Typography>
+      ),
+    },
+    {
+      id: 'deal_count',
+      label: 'Negócios',
+      align: 'center' as const,
+    },
+    {
+      id: 'total_value',
+      label: 'Valor Total',
+      align: 'right' as const,
+      format: formatCurrency,
+    },
+    {
+      id: 'percentage',
+      label: '% do Total',
+      align: 'center' as const,
+      renderCell: (_value: any, row: any) => {
+        const percentage = (row.total_value / totalValueInPipeline) * 100;
+        return (
+          <Box sx={{ width: '100%', px: 2 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <LinearProgress
+                variant="determinate"
+                value={percentage}
+                sx={{
+                  flex: 1,
+                  height: 8,
+                  borderRadius: 4,
+                  backgroundColor: '#e0e0e0',
+                  '& .MuiLinearProgress-bar': {
+                    backgroundColor: '#4caf50',
+                    borderRadius: 4,
+                  },
+                }}
+              />
+              <Typography sx={{ fontSize: '0.875rem', fontWeight: 600, minWidth: 45 }}>
+                {percentage.toFixed(1)}%
+              </Typography>
+            </Box>
+          </Box>
+        );
+      },
+    },
+  ];
 
   return (
     <Layout>
-      <Box mb={4}>
-        <Typography variant="h4" fontWeight={700} gutterBottom>
-          Pipeline de Vendas
-        </Typography>
-        <Typography variant="body1" color="text.secondary">
-          Análise do funil de vendas e oportunidades ativas
-        </Typography>
-      </Box>
+      <Fade in timeout={500}>
+        <Box>
+          <Box mb={4}>
+            <Typography
+              variant="h4"
+              sx={{
+                fontWeight: 700,
+                background: 'linear-gradient(135deg, #ff9800 0%, #f57c00 100%)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                mb: 1,
+              }}
+            >
+              🎯 Pipeline de Vendas
+            </Typography>
+            <Typography variant="body1" color="text.secondary">
+              Análise do funil de vendas e estágios do pipeline
+            </Typography>
+          </Box>
 
-      {/* Métricas Resumidas */}
-      <Grid container spacing={3} mb={4}>
-        <Grid item xs={12} sm={6} md={4}>
-          <MetricCard
-            title="Negócios no Pipeline"
-            value={totalDealsInPipeline}
-            subtitle="Oportunidades ativas"
-            icon={<Assessment />}
-            color="primary"
-          />
-        </Grid>
-        <Grid item xs={12} sm={6} md={4}>
-          <MetricCard
-            title="Valor Total no Pipeline"
-            value={formatCurrency(totalValueInPipeline)}
-            subtitle="Potencial de receita"
-            icon={<AttachMoney />}
-            color="success"
-          />
-        </Grid>
-        <Grid item xs={12} sm={6} md={4}>
-          <MetricCard
-            title="Vendas Fechadas (Mês)"
-            value={metrics.general.monthly_won_count}
-            subtitle={formatCurrency(metrics.general.monthly_won_value)}
-            icon={<TrendingUp />}
-            color="info"
-          />
-        </Grid>
-      </Grid>
+          {/* Cards de Métricas */}
+          <Grid container spacing={3} sx={{ mb: 4 }}>
+            <Grow in timeout={600}>
+              <Grid item xs={12} sm={6} md={3}>
+                <EnhancedMetricCard
+                  title="Negócios no Pipeline"
+                  value={totalDealsInPipeline}
+                  subtitle="Total de negócios ativos"
+                  icon={<Timeline />}
+                  color="#2196f3"
+                />
+              </Grid>
+            </Grow>
 
-      {/* Funil de Vendas */}
-      <Grid container spacing={3}>
-        <Grid item xs={12} md={6}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" fontWeight={700} gutterBottom>
-                Funil de Vendas
-              </Typography>
-              <ResponsiveContainer width="100%" height={400}>
-                <FunnelChart>
-                  <Tooltip formatter={(value: number) => `${value} negócios`} />
-                  <Funnel dataKey="value" data={funnelData} isAnimationActive>
-                    <LabelList position="right" fill="#000" stroke="none" dataKey="name" />
-                  </Funnel>
-                </FunnelChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-        </Grid>
+            <Grow in timeout={700}>
+              <Grid item xs={12} sm={6} md={3}>
+                <EnhancedMetricCard
+                  title="Valor no Pipeline"
+                  value={formatCurrency(totalValueInPipeline)}
+                  subtitle="Valor total em negociação"
+                  icon={<AttachMoney />}
+                  color="#4caf50"
+                />
+              </Grid>
+            </Grow>
 
-        <Grid item xs={12} md={6}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" fontWeight={700} gutterBottom>
-                Detalhes por Etapa
-              </Typography>
-              <Box mt={3}>
-                {metrics.closing_pipeline_summary.length > 0 ? (
-                  metrics.closing_pipeline_summary.map((stage, index) => (
-                    <Box
-                      key={stage.stage_name}
-                      mb={3}
-                      p={2}
-                      sx={{
-                        backgroundColor: index === 0 ? '#e8f5e8' : index === 1 ? '#fff3cd' : '#d1ecf1',
-                        borderRadius: 2,
-                        borderLeft: `4px solid ${index === 0 ? '#28a745' : index === 1 ? '#ffc107' : '#007bff'}`,
-                      }}
-                    >
-                      <Typography variant="h6" fontWeight={700} gutterBottom>
-                        {stage.stage_name}
-                      </Typography>
-                      <Typography variant="body1">
-                        <strong>Negócios:</strong> {stage.deal_count}
-                      </Typography>
-                      <Typography variant="body1">
-                        <strong>Valor Total:</strong> {formatCurrency(stage.total_value)}
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary" mt={1}>
-                        <strong>Ticket Médio:</strong>{' '}
-                        {formatCurrency(stage.total_value / stage.deal_count)}
-                      </Typography>
-                    </Box>
-                  ))
-                ) : (
-                  <Alert severity="info">Nenhum negócio no pipeline de fechamento</Alert>
-                )}
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
+            <Grow in timeout={800}>
+              <Grid item xs={12} sm={6} md={3}>
+                <EnhancedMetricCard
+                  title="Fechados no Mês"
+                  value={metrics.general.monthly_won_count}
+                  subtitle={formatCurrency(metrics.general.monthly_won_value)}
+                  icon={<TrendingUp />}
+                  color="#ff9800"
+                />
+              </Grid>
+            </Grow>
+
+            <Grow in timeout={900}>
+              <Grid item xs={12} sm={6} md={3}>
+                <EnhancedMetricCard
+                  title="Estágios Ativos"
+                  value={metrics.closing_pipeline_summary.length}
+                  subtitle="Total de estágios"
+                  icon={<Assessment />}
+                  color="#9c27b0"
+                />
+              </Grid>
+            </Grow>
+          </Grid>
+
+          {/* Funil Visual */}
+          <Fade in timeout={1000}>
+            <Card
+              sx={{
+                mb: 4,
+                background: 'linear-gradient(135deg, #fff3e0 0%, #ffffff 100%)',
+                border: '1px solid #ff980030',
+                transition: 'all 0.3s ease',
+                '&:hover': {
+                  boxShadow: '0 8px 24px rgba(255, 152, 0, 0.15)',
+                  transform: 'translateY(-2px)',
+                },
+              }}
+            >
+              <CardContent sx={{ p: 3 }}>
+                <Typography
+                  variant="h6"
+                  sx={{
+                    fontWeight: 700,
+                    color: '#f57c00',
+                    mb: 3,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 1,
+                  }}
+                >
+                  📊 Visão Geral do Funil
+                </Typography>
+
+                <Grid container spacing={2}>
+                  {metrics.closing_pipeline_summary.map((stage, index) => {
+                    const percentage = (stage.total_value / totalValueInPipeline) * 100;
+                    return (
+                      <Grid item xs={12} key={stage.stage_name}>
+                        <Box
+                          sx={{
+                            p: 2,
+                            backgroundColor: '#ffffff',
+                            borderRadius: 2,
+                            border: '1px solid #e0e0e0',
+                            transition: 'all 0.2s ease',
+                            '&:hover': {
+                              borderColor: '#ff9800',
+                              boxShadow: '0 2px 8px rgba(255, 152, 0, 0.1)',
+                              transform: 'translateX(4px)',
+                            },
+                          }}
+                        >
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                            <Typography sx={{ fontWeight: 600, fontSize: '1rem' }}>
+                              {index + 1}. {stage.stage_name}
+                            </Typography>
+                            <Typography sx={{ fontWeight: 700, color: '#4caf50', fontSize: '1.1rem' }}>
+                              {formatCurrency(stage.total_value)}
+                            </Typography>
+                          </Box>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                            <LinearProgress
+                              variant="determinate"
+                              value={percentage}
+                              sx={{
+                                flex: 1,
+                                height: 10,
+                                borderRadius: 5,
+                                backgroundColor: '#e0e0e0',
+                                '& .MuiLinearProgress-bar': {
+                                  background: 'linear-gradient(90deg, #ff9800 0%, #f57c00 100%)',
+                                  borderRadius: 5,
+                                },
+                              }}
+                            />
+                            <Typography sx={{ fontSize: '0.875rem', fontWeight: 600, minWidth: 80 }}>
+                              {stage.deal_count} negócios
+                            </Typography>
+                            <Typography sx={{ fontSize: '0.875rem', fontWeight: 600, minWidth: 50, color: '#ff9800' }}>
+                              {percentage.toFixed(1)}%
+                            </Typography>
+                          </Box>
+                        </Box>
+                      </Grid>
+                    );
+                  })}
+                </Grid>
+              </CardContent>
+            </Card>
+          </Fade>
+
+          {/* Tabela Detalhada */}
+          <Fade in timeout={1100}>
+            <Box>
+              <CustomTable
+                title="Detalhamento por Estágio"
+                icon="📋"
+                columns={tableColumns}
+                data={metrics.closing_pipeline_summary}
+              />
+            </Box>
+          </Fade>
+        </Box>
+      </Fade>
     </Layout>
   );
 }

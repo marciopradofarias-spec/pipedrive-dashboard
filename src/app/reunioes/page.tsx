@@ -6,13 +6,16 @@ import {
   CardContent,
   Typography,
   Box,
-  CircularProgress,
   Alert,
   Grid,
+  Fade,
+  Grow,
 } from '@mui/material';
-import { CalendarMonth, CheckCircle, Cancel, Schedule } from '@mui/icons-material';
+import { CalendarMonth, CheckCircle, Cancel, Schedule, EventAvailable } from '@mui/icons-material';
 import Layout from '@/components/Layout';
-import MetricCard from '@/components/MetricCard';
+import EnhancedMetricCard from '@/components/EnhancedMetricCard';
+import CustomPieChart from '@/components/CustomPieChart';
+import DashboardSkeleton from '@/components/DashboardSkeleton';
 
 interface Metrics {
   general: {
@@ -57,16 +60,6 @@ export default function ReunioesPage() {
     }
   };
 
-  if (loading && !metrics) {
-    return (
-      <Layout>
-        <Box display="flex" justifyContent="center" alignItems="center" minHeight="80vh">
-          <CircularProgress size={60} />
-        </Box>
-      </Layout>
-    );
-  }
-
   if (error) {
     return (
       <Layout>
@@ -77,128 +70,258 @@ export default function ReunioesPage() {
     );
   }
 
-  if (!metrics) {
+  if (loading || !metrics) {
     return (
       <Layout>
-        <Alert severity="warning">Nenhuma métrica disponível</Alert>
+        <DashboardSkeleton />
       </Layout>
     );
   }
 
+  const meetingsData = [
+    { name: 'Agendadas', value: metrics.general.scheduled },
+    { name: 'Realizadas', value: metrics.general.realized_successfully },
+    { name: 'Não Compareceu', value: metrics.general.no_show },
+  ];
+
+  const totalMeetings = metrics.general.scheduled + metrics.general.realized_successfully + metrics.general.no_show;
+  const successRate = totalMeetings > 0 ? ((metrics.general.realized_successfully / totalMeetings) * 100).toFixed(1) : '0';
+
   return (
     <Layout>
-      <Box mb={4}>
-        <Typography variant="h4" fontWeight={700} gutterBottom>
-          Reuniões
-        </Typography>
-        <Typography variant="body1" color="text.secondary">
-          Análise de reuniões agendadas e realizadas
-        </Typography>
-      </Box>
-
-      {/* Métricas de Reuniões */}
-      <Grid container spacing={3} mb={4}>
-        <Grid item xs={12} sm={6} md={3}>
-          <MetricCard
-            title="Total Agendadas"
-            value={metrics.general.meetings_scheduled_stage}
-            subtitle="Total geral no estágio"
-            icon={<CalendarMonth />}
-            color="warning"
-          />
-        </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          <MetricCard
-            title="Criadas Este Mês"
-            value={metrics.general.meetings_created_this_month}
-            subtitle="Novas reuniões"
-            icon={<Schedule />}
-            color="primary"
-          />
-        </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          <MetricCard
-            title="Atualizadas Este Mês"
-            value={metrics.general.meetings_updated_this_month}
-            subtitle="Movimentações recentes"
-            icon={<Schedule />}
-            color="info"
-          />
-        </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          <MetricCard
-            title="Atividades Futuras"
-            value={metrics.general.meetings_scheduled_activities}
-            subtitle="Próximas atividades"
-            icon={<Schedule />}
-            color="secondary"
-          />
-        </Grid>
-      </Grid>
-
-      {/* Métricas do Dia */}
-      <Grid container spacing={3} mb={4}>
-        <Grid item xs={12} sm={6} md={4}>
-          <MetricCard
-            title="Agendadas Hoje"
-            value={metrics.general.scheduled}
-            subtitle="Reuniões marcadas hoje"
-            icon={<CalendarMonth />}
-            color="primary"
-          />
-        </Grid>
-        <Grid item xs={12} sm={6} md={4}>
-          <MetricCard
-            title="No-Show Hoje"
-            value={metrics.general.no_show}
-            subtitle="Reuniões não compareceram"
-            icon={<Cancel />}
-            color="error"
-          />
-        </Grid>
-        <Grid item xs={12} sm={6} md={4}>
-          <MetricCard
-            title="Realizadas com Sucesso"
-            value={metrics.general.realized_successfully}
-            subtitle="Reuniões bem-sucedidas"
-            icon={<CheckCircle />}
-            color="success"
-          />
-        </Grid>
-      </Grid>
-
-      {/* Informações Detalhadas */}
-      <Card sx={{ backgroundColor: '#fff3cd', borderLeft: '4px solid #ffc107' }}>
-        <CardContent>
-          <Typography variant="h6" fontWeight={700} color="#856404" gutterBottom>
-            📅 Sobre as Reuniões Agendadas
-          </Typography>
-          <Box mt={2}>
-            <Typography variant="body1" paragraph>
-              <strong>Total geral no estágio "Reunião Agendada":</strong>{' '}
-              {metrics.general.meetings_scheduled_stage} negócios
+      <Fade in timeout={500}>
+        <Box>
+          <Box mb={4}>
+            <Typography
+              variant="h4"
+              sx={{
+                fontWeight: 700,
+                background: 'linear-gradient(135deg, #9c27b0 0%, #7b1fa2 100%)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                mb: 1,
+              }}
+            >
+              📅 Reuniões
             </Typography>
-            <Typography variant="body1" paragraph>
-              <strong>Reuniões criadas este mês:</strong>{' '}
-              {metrics.general.meetings_created_this_month} negócios
-            </Typography>
-            <Typography variant="body1" paragraph>
-              <strong>Reuniões atualizadas este mês:</strong>{' '}
-              {metrics.general.meetings_updated_this_month} negócios
-            </Typography>
-            <Typography variant="body1" paragraph>
-              <strong>Atividades futuras agendadas:</strong>{' '}
-              {metrics.general.meetings_scheduled_activities} atividades
+            <Typography variant="body1" color="text.secondary">
+              Análise de reuniões agendadas e realizadas
             </Typography>
           </Box>
-          <Alert severity="info" sx={{ mt: 2 }}>
-            <Typography variant="body2">
-              <strong>📝 Nota:</strong> O "Total geral" inclui negócios históricos que permanecem no
-              estágio "Reunião Agendada". Os números "este mês" mostram apenas a movimentação recente.
-            </Typography>
-          </Alert>
-        </CardContent>
-      </Card>
+
+          {/* Métricas de Reuniões */}
+          <Grid container spacing={3} mb={4}>
+            <Grow in timeout={600}>
+              <Grid item xs={12} sm={6} md={3}>
+                <EnhancedMetricCard
+                  title="Reuniões Agendadas"
+                  value={metrics.general.meetings_scheduled_stage}
+                  subtitle="No estágio de reunião"
+                  icon={<CalendarMonth />}
+                  color="#2196f3"
+                />
+              </Grid>
+            </Grow>
+
+            <Grow in timeout={700}>
+              <Grid item xs={12} sm={6} md={3}>
+                <EnhancedMetricCard
+                  title="Criadas Este Mês"
+                  value={metrics.general.meetings_created_this_month}
+                  subtitle="Novas reuniões"
+                  icon={<EventAvailable />}
+                  color="#4caf50"
+                />
+              </Grid>
+            </Grow>
+
+            <Grow in timeout={800}>
+              <Grid item xs={12} sm={6} md={3}>
+                <EnhancedMetricCard
+                  title="Realizadas"
+                  value={metrics.general.realized_successfully}
+                  subtitle={`Taxa: ${successRate}%`}
+                  icon={<CheckCircle />}
+                  color="#ff9800"
+                  trend={{
+                    value: `${successRate}%`,
+                    isPositive: parseFloat(successRate) >= 70,
+                  }}
+                />
+              </Grid>
+            </Grow>
+
+            <Grow in timeout={900}>
+              <Grid item xs={12} sm={6} md={3}>
+                <EnhancedMetricCard
+                  title="Não Compareceu"
+                  value={metrics.general.no_show}
+                  subtitle="No-show"
+                  icon={<Cancel />}
+                  color="#f44336"
+                />
+              </Grid>
+            </Grow>
+          </Grid>
+
+          {/* Card de Resumo */}
+          <Fade in timeout={1000}>
+            <Card
+              sx={{
+                mb: 4,
+                background: 'linear-gradient(135deg, #f3e5f5 0%, #ffffff 100%)',
+                border: '1px solid #9c27b030',
+                transition: 'all 0.3s ease',
+                '&:hover': {
+                  boxShadow: '0 8px 24px rgba(156, 39, 176, 0.15)',
+                  transform: 'translateY(-2px)',
+                },
+              }}
+            >
+              <CardContent sx={{ p: 3 }}>
+                <Typography
+                  variant="h6"
+                  sx={{
+                    fontWeight: 700,
+                    color: '#7b1fa2',
+                    mb: 3,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 1,
+                  }}
+                >
+                  📊 Resumo de Atividades
+                </Typography>
+
+                <Grid container spacing={3}>
+                  <Grid item xs={12} md={6}>
+                    <Box
+                      sx={{
+                        p: 3,
+                        backgroundColor: '#ffffff',
+                        borderRadius: 2,
+                        border: '1px solid #e0e0e0',
+                        transition: 'all 0.2s ease',
+                        '&:hover': {
+                          borderColor: '#9c27b0',
+                          boxShadow: '0 2px 8px rgba(156, 39, 176, 0.1)',
+                        },
+                      }}
+                    >
+                      <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1, fontWeight: 600 }}>
+                        Total de Reuniões Agendadas
+                      </Typography>
+                      <Typography variant="h4" sx={{ fontWeight: 700, color: '#2196f3', mb: 2 }}>
+                        {metrics.general.total_meetings_scheduled}
+                      </Typography>
+                      <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                        Atividades do tipo reunião agendadas
+                      </Typography>
+                    </Box>
+                  </Grid>
+
+                  <Grid item xs={12} md={6}>
+                    <Box
+                      sx={{
+                        p: 3,
+                        backgroundColor: '#ffffff',
+                        borderRadius: 2,
+                        border: '1px solid #e0e0e0',
+                        transition: 'all 0.2s ease',
+                        '&:hover': {
+                          borderColor: '#9c27b0',
+                          boxShadow: '0 2px 8px rgba(156, 39, 176, 0.1)',
+                        },
+                      }}
+                    >
+                      <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1, fontWeight: 600 }}>
+                        Atualizações Este Mês
+                      </Typography>
+                      <Typography variant="h4" sx={{ fontWeight: 700, color: '#ff9800', mb: 2 }}>
+                        {metrics.general.meetings_updated_this_month}
+                      </Typography>
+                      <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                        Reuniões atualizadas no período
+                      </Typography>
+                    </Box>
+                  </Grid>
+                </Grid>
+              </CardContent>
+            </Card>
+          </Fade>
+
+          {/* Gráfico de Distribuição */}
+          <Grid container spacing={3}>
+            <Grid item xs={12} md={6}>
+              <Fade in timeout={1100}>
+                <Box>
+                  <CustomPieChart
+                    title="Distribuição de Reuniões"
+                    data={meetingsData}
+                    icon="📊"
+                  />
+                </Box>
+              </Fade>
+            </Grid>
+
+            <Grid item xs={12} md={6}>
+              <Fade in timeout={1200}>
+                <Card
+                  sx={{
+                    height: '100%',
+                    transition: 'all 0.3s ease',
+                    '&:hover': {
+                      transform: 'translateY(-4px)',
+                      boxShadow: '0 12px 24px rgba(156, 39, 176, 0.15)',
+                    },
+                  }}
+                >
+                  <CardContent sx={{ p: 3 }}>
+                    <Typography
+                      variant="h6"
+                      sx={{
+                        fontWeight: 600,
+                        mb: 3,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 1,
+                      }}
+                    >
+                      📈 Indicadores de Performance
+                    </Typography>
+
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                      <Box>
+                        <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1, fontWeight: 600 }}>
+                          Taxa de Sucesso
+                        </Typography>
+                        <Typography variant="h3" sx={{ fontWeight: 700, color: '#4caf50' }}>
+                          {successRate}%
+                        </Typography>
+                        <Typography variant="body2" sx={{ color: 'text.secondary', mt: 1 }}>
+                          {metrics.general.realized_successfully} de {totalMeetings} reuniões realizadas com sucesso
+                        </Typography>
+                      </Box>
+
+                      <Box>
+                        <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1, fontWeight: 600 }}>
+                          Taxa de No-Show
+                        </Typography>
+                        <Typography variant="h3" sx={{ fontWeight: 700, color: '#f44336' }}>
+                          {totalMeetings > 0 ? ((metrics.general.no_show / totalMeetings) * 100).toFixed(1) : '0'}%
+                        </Typography>
+                        <Typography variant="body2" sx={{ color: 'text.secondary', mt: 1 }}>
+                          {metrics.general.no_show} reuniões sem comparecimento
+                        </Typography>
+                      </Box>
+                    </Box>
+                  </CardContent>
+                </Card>
+              </Fade>
+            </Grid>
+          </Grid>
+        </Box>
+      </Fade>
     </Layout>
   );
 }

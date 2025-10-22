@@ -6,20 +6,19 @@ import {
   CardContent,
   Typography,
   Box,
-  CircularProgress,
   Alert,
   Grid,
   Avatar,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
+  Fade,
+  Grow,
+  Chip,
 } from '@mui/material';
 import { EmojiEvents, TrendingUp, AttachMoney } from '@mui/icons-material';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import Layout from '@/components/Layout';
+import DashboardSkeleton from '@/components/DashboardSkeleton';
+import CustomBarChart from '@/components/CustomBarChart';
+import CustomTable from '@/components/CustomTable';
+import EnhancedMetricCard from '@/components/EnhancedMetricCard';
 
 interface Metrics {
   general: {
@@ -98,15 +97,18 @@ export default function VendedoresPage() {
     }
   };
 
-  if (loading && !metrics) {
-    return (
-      <Layout>
-        <Box display="flex" justifyContent="center" alignItems="center" minHeight="80vh">
-          <CircularProgress size={60} />
-        </Box>
-      </Layout>
-    );
-  }
+  const getMedalEmoji = (index: number) => {
+    switch (index) {
+      case 0:
+        return '🥇';
+      case 1:
+        return '🥈';
+      case 2:
+        return '🥉';
+      default:
+        return '🏅';
+    }
+  };
 
   if (error) {
     return (
@@ -118,157 +120,260 @@ export default function VendedoresPage() {
     );
   }
 
-  if (!metrics) {
+  if (loading || !metrics) {
     return (
       <Layout>
-        <Alert severity="warning">Nenhuma métrica disponível</Alert>
+        <DashboardSkeleton />
       </Layout>
     );
   }
 
+  const chartData = metrics.monthly_stats_by_owner.map((owner) => ({
+    name: owner.owner_name,
+    value: owner.total_value,
+  }));
+
+  const tableColumns = [
+    {
+      id: 'position',
+      label: 'Posição',
+      align: 'center' as const,
+      renderCell: (_value: any, row: any, index: number) => (
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
+          <Typography sx={{ fontSize: '1.5rem' }}>{getMedalEmoji(index)}</Typography>
+          <Chip
+            label={`#${index + 1}`}
+            size="small"
+            sx={{
+              backgroundColor: getMedalColor(index),
+              color: '#000',
+              fontWeight: 700,
+            }}
+          />
+        </Box>
+      ),
+    },
+    {
+      id: 'owner_name',
+      label: 'Vendedor',
+      align: 'left' as const,
+      renderCell: (value: string) => (
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          <Avatar
+            sx={{
+              backgroundColor: 'primary.main',
+              fontWeight: 600,
+              width: 40,
+              height: 40,
+            }}
+          >
+            {getInitials(value)}
+          </Avatar>
+          <Typography sx={{ fontWeight: 600 }}>{value}</Typography>
+        </Box>
+      ),
+    },
+    {
+      id: 'deal_count',
+      label: 'Negócios',
+      align: 'center' as const,
+      renderCell: (value: number) => (
+        <Chip
+          label={value}
+          color="primary"
+          size="small"
+          sx={{ fontWeight: 600 }}
+        />
+      ),
+    },
+    {
+      id: 'total_value',
+      label: 'Valor Total',
+      align: 'right' as const,
+      format: formatCurrency,
+    },
+    {
+      id: 'avg_value',
+      label: 'Ticket Médio',
+      align: 'right' as const,
+      renderCell: (_value: any, row: any) => (
+        <Typography sx={{ fontWeight: 600, color: '#2e7d32' }}>
+          {formatCurrency(row.total_value / row.deal_count)}
+        </Typography>
+      ),
+    },
+  ];
+
+  const topSeller = metrics.monthly_stats_by_owner[0];
+  const totalValue = metrics.general.monthly_won_value;
+  const avgTicket = totalValue / metrics.monthly_stats_by_owner.reduce((sum, o) => sum + o.deal_count, 0);
+
   return (
     <Layout>
-      <Box mb={4}>
-        <Typography variant="h4" fontWeight={700} gutterBottom>
-          Vendedores
-        </Typography>
-        <Typography variant="body1" color="text.secondary">
-          Rankings e performance individual dos vendedores
-        </Typography>
-      </Box>
-
-      {/* Pódio dos Vendedores */}
-      <Card sx={{ mb: 4, background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white' }}>
-        <CardContent>
-          <Box display="flex" alignItems="center" mb={2}>
-            <EmojiEvents sx={{ fontSize: 40, mr: 2 }} />
-            <Typography variant="h5" fontWeight={700}>
-              🏆 Ranking do Mês
+      <Fade in timeout={500}>
+        <Box>
+          <Box mb={4}>
+            <Typography
+              variant="h4"
+              sx={{
+                fontWeight: 700,
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                mb: 1,
+              }}
+            >
+              👥 Vendedores
+            </Typography>
+            <Typography variant="body1" color="text.secondary">
+              Rankings e performance individual dos vendedores
             </Typography>
           </Box>
-          <Grid container spacing={2} justifyContent="center">
-            {metrics.monthly_stats_by_owner.slice(0, 3).map((owner, index) => (
-              <Grid item xs={12} sm={4} key={owner.owner_name}>
-                <Box
-                  textAlign="center"
-                  p={3}
-                  sx={{
-                    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                    borderRadius: 2,
-                    backdropFilter: 'blur(10px)',
-                  }}
-                >
-                  <Avatar
-                    sx={{
-                      width: 80,
-                      height: 80,
-                      margin: '0 auto',
-                      mb: 2,
-                      backgroundColor: getMedalColor(index),
-                      color: '#000',
-                      fontSize: '2rem',
-                      fontWeight: 700,
-                    }}
-                  >
-                    {index + 1}
-                  </Avatar>
-                  <Typography variant="h6" fontWeight={700}>
-                    {owner.owner_name}
-                  </Typography>
-                  <Typography variant="h5" fontWeight={700} mt={1}>
-                    {formatCurrency(owner.total_value)}
-                  </Typography>
-                  <Typography variant="body2" mt={1}>
-                    {owner.deal_count} negócios fechados
+
+          {/* Cards de Métricas Gerais */}
+          <Grid container spacing={3} sx={{ mb: 4 }}>
+            <Grow in timeout={600}>
+              <Grid item xs={12} sm={6} md={4}>
+                <EnhancedMetricCard
+                  title="Top Vendedor"
+                  value={topSeller.owner_name}
+                  subtitle={formatCurrency(topSeller.total_value)}
+                  icon={<EmojiEvents />}
+                  color="#FFD700"
+                />
+              </Grid>
+            </Grow>
+
+            <Grow in timeout={700}>
+              <Grid item xs={12} sm={6} md={4}>
+                <EnhancedMetricCard
+                  title="Faturamento Total"
+                  value={formatCurrency(totalValue)}
+                  subtitle="Este mês"
+                  icon={<AttachMoney />}
+                  color="#4caf50"
+                />
+              </Grid>
+            </Grow>
+
+            <Grow in timeout={800}>
+              <Grid item xs={12} sm={6} md={4}>
+                <EnhancedMetricCard
+                  title="Ticket Médio"
+                  value={formatCurrency(avgTicket)}
+                  subtitle="Média geral"
+                  icon={<TrendingUp />}
+                  color="#2196f3"
+                />
+              </Grid>
+            </Grow>
+          </Grid>
+
+          {/* Pódio dos Vendedores */}
+          <Fade in timeout={900}>
+            <Card
+              sx={{
+                mb: 4,
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                color: 'white',
+                transition: 'all 0.3s ease',
+                '&:hover': {
+                  transform: 'translateY(-4px)',
+                  boxShadow: '0 12px 32px rgba(102, 126, 234, 0.3)',
+                },
+              }}
+            >
+              <CardContent sx={{ p: 4 }}>
+                <Box display="flex" alignItems="center" mb={3}>
+                  <EmojiEvents sx={{ fontSize: 48, mr: 2 }} />
+                  <Typography variant="h5" fontWeight={700}>
+                    🏆 Ranking do Mês
                   </Typography>
                 </Box>
-              </Grid>
-            ))}
-          </Grid>
-        </CardContent>
-      </Card>
-
-      {/* Gráfico de Performance */}
-      <Grid container spacing={3} mb={4}>
-        <Grid item xs={12}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" fontWeight={700} gutterBottom>
-                Performance por Vendedor (Este Mês)
-              </Typography>
-              <ResponsiveContainer width="100%" height={400}>
-                <BarChart data={metrics.monthly_stats_by_owner}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="owner_name" />
-                  <YAxis />
-                  <Tooltip formatter={(value: number) => formatCurrency(value)} />
-                  <Legend />
-                  <Bar dataKey="total_value" fill="#28a745" name="Valor Total" />
-                  <Bar dataKey="deal_count" fill="#007bff" name="Nº de Negócios" />
-                </BarChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
-
-      {/* Tabela Detalhada */}
-      <Card>
-        <CardContent>
-          <Typography variant="h6" fontWeight={700} gutterBottom>
-            Estatísticas Detalhadas
-          </Typography>
-          <TableContainer>
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableCell><strong>Posição</strong></TableCell>
-                  <TableCell><strong>Vendedor</strong></TableCell>
-                  <TableCell align="right"><strong>Negócios Fechados</strong></TableCell>
-                  <TableCell align="right"><strong>Valor Total</strong></TableCell>
-                  <TableCell align="right"><strong>Ticket Médio</strong></TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {metrics.monthly_stats_by_owner.map((owner, index) => (
-                  <TableRow key={owner.owner_name} hover>
-                    <TableCell>
-                      <Box display="flex" alignItems="center">
-                        <Avatar
+                <Grid container spacing={3} justifyContent="center">
+                  {metrics.monthly_stats_by_owner.slice(0, 3).map((owner, index) => (
+                    <Grid item xs={12} sm={4} key={owner.owner_name}>
+                      <Grow in timeout={1000 + index * 100}>
+                        <Box
+                          textAlign="center"
+                          p={3}
                           sx={{
-                            width: 32,
-                            height: 32,
-                            backgroundColor: getMedalColor(index),
-                            color: '#000',
-                            fontSize: '0.875rem',
-                            fontWeight: 700,
-                            mr: 1,
+                            backgroundColor: 'rgba(255, 255, 255, 0.15)',
+                            borderRadius: 3,
+                            backdropFilter: 'blur(10px)',
+                            border: '2px solid rgba(255, 255, 255, 0.2)',
+                            transition: 'all 0.3s ease',
+                            '&:hover': {
+                              backgroundColor: 'rgba(255, 255, 255, 0.25)',
+                              transform: 'scale(1.05)',
+                            },
                           }}
                         >
-                          {index + 1}
-                        </Avatar>
-                      </Box>
-                    </TableCell>
-                    <TableCell>
-                      <Box display="flex" alignItems="center">
-                        <Avatar sx={{ mr: 2, backgroundColor: 'primary.main' }}>
-                          {getInitials(owner.owner_name)}
-                        </Avatar>
-                        <Typography fontWeight={600}>{owner.owner_name}</Typography>
-                      </Box>
-                    </TableCell>
-                    <TableCell align="right">{owner.deal_count}</TableCell>
-                    <TableCell align="right">{formatCurrency(owner.total_value)}</TableCell>
-                    <TableCell align="right">
-                      {formatCurrency(owner.total_value / owner.deal_count)}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        </CardContent>
-      </Card>
+                          <Typography sx={{ fontSize: '3rem', mb: 1 }}>
+                            {getMedalEmoji(index)}
+                          </Typography>
+                          <Avatar
+                            sx={{
+                              width: 80,
+                              height: 80,
+                              margin: '0 auto',
+                              mb: 2,
+                              backgroundColor: getMedalColor(index),
+                              color: '#000',
+                              fontSize: '2rem',
+                              fontWeight: 700,
+                              border: '4px solid rgba(255, 255, 255, 0.3)',
+                            }}
+                          >
+                            {index + 1}
+                          </Avatar>
+                          <Typography variant="h6" fontWeight={700}>
+                            {owner.owner_name}
+                          </Typography>
+                          <Typography variant="h5" fontWeight={700} mt={1}>
+                            {formatCurrency(owner.total_value)}
+                          </Typography>
+                          <Typography variant="body2" mt={1} sx={{ opacity: 0.9 }}>
+                            {owner.deal_count} negócios fechados
+                          </Typography>
+                        </Box>
+                      </Grow>
+                    </Grid>
+                  ))}
+                </Grid>
+              </CardContent>
+            </Card>
+          </Fade>
+
+          {/* Gráfico de Performance */}
+          <Grid container spacing={3} mb={4}>
+            <Grid item xs={12}>
+              <Fade in timeout={1100}>
+                <Box>
+                  <CustomBarChart
+                    title="Performance por Vendedor (Este Mês)"
+                    data={chartData}
+                    formatValue={formatCurrency}
+                    icon="📈"
+                  />
+                </Box>
+              </Fade>
+            </Grid>
+          </Grid>
+
+          {/* Tabela Detalhada */}
+          <Fade in timeout={1200}>
+            <Box>
+              <CustomTable
+                title="Estatísticas Detalhadas"
+                icon="📊"
+                columns={tableColumns}
+                data={metrics.monthly_stats_by_owner}
+              />
+            </Box>
+          </Fade>
+        </Box>
+      </Fade>
     </Layout>
   );
 }
