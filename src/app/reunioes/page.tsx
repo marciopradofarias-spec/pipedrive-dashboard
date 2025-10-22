@@ -16,6 +16,8 @@ import Layout from '@/components/Layout';
 import EnhancedMetricCard from '@/components/EnhancedMetricCard';
 import CustomPieChart from '@/components/CustomPieChart';
 import DashboardSkeleton from '@/components/DashboardSkeleton';
+import MarketingMetrics from '@/components/MarketingMetrics';
+import CreativeGallery from '@/components/CreativeGallery';
 
 interface Metrics {
   general: {
@@ -30,14 +32,34 @@ interface Metrics {
   };
 }
 
+interface MarketingData {
+  metrics: {
+    total_spend: number;
+    total_leads: number;
+    total_meetings: number;
+    cost_per_lead: number;
+    cost_per_meeting: number;
+    meetings_from_traffic: number;
+    meetings_from_organic: number;
+  };
+  top_creatives_by_meetings: any[];
+  top_creatives_by_leads: any[];
+}
+
 export default function ReunioesPage() {
   const [metrics, setMetrics] = useState<Metrics | null>(null);
+  const [marketingData, setMarketingData] = useState<MarketingData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadingMarketing, setLoadingMarketing] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchMetrics();
-    const interval = setInterval(fetchMetrics, 5 * 60 * 1000);
+    fetchMarketingData();
+    const interval = setInterval(() => {
+      fetchMetrics();
+      fetchMarketingData();
+    }, 5 * 60 * 1000);
     return () => clearInterval(interval);
   }, []);
 
@@ -57,6 +79,22 @@ export default function ReunioesPage() {
       setError(err.message || 'Erro ao conectar com a API');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchMarketingData = async () => {
+    try {
+      setLoadingMarketing(true);
+      const response = await fetch('/api/marketing?period=mes');
+      const data = await response.json();
+      
+      if (data.success) {
+        setMarketingData(data.data);
+      }
+    } catch (err: any) {
+      console.error('Erro ao carregar dados de marketing:', err);
+    } finally {
+      setLoadingMarketing(false);
     }
   };
 
@@ -320,6 +358,41 @@ export default function ReunioesPage() {
               </Fade>
             </Grid>
           </Grid>
+
+          {/* Seção de Marketing */}
+          {!loadingMarketing && marketingData && (
+            <Fade in timeout={1300}>
+              <Box mt={6}>
+                <Box mb={4}>
+                  <MarketingMetrics metrics={marketingData.metrics} />
+                </Box>
+
+                {/* Criativos que mais trouxeram reuniões */}
+                {marketingData.top_creatives_by_meetings.length > 0 && (
+                  <Box mb={4}>
+                    <CreativeGallery
+                      title="Top Criativos por Reuniões Agendadas"
+                      icon="🎯"
+                      creatives={marketingData.top_creatives_by_meetings}
+                      sortBy="meetings"
+                    />
+                  </Box>
+                )}
+
+                {/* Criativos que mais trouxeram leads */}
+                {marketingData.top_creatives_by_leads.length > 0 && (
+                  <Box mb={4}>
+                    <CreativeGallery
+                      title="Top Criativos por Leads Gerados"
+                      icon="👥"
+                      creatives={marketingData.top_creatives_by_leads}
+                      sortBy="leads"
+                    />
+                  </Box>
+                )}
+              </Box>
+            </Fade>
+          )}
         </Box>
       </Fade>
     </Layout>
