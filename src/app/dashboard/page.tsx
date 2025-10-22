@@ -75,7 +75,16 @@ export default function DashboardPage() {
   const fetchMetrics = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/metrics');
+      // Map Period to API period parameter
+      const periodMap: Record<Period, string> = {
+        today: 'hoje',
+        week: 'semana',
+        month: 'mes',
+        quarter: 'trimestre',
+        year: 'ano',
+      };
+      const apiPeriod = periodMap[period];
+      const response = await fetch(`/api/metrics?period=${apiPeriod}`);
       const data = await response.json();
       
       if (data.success) {

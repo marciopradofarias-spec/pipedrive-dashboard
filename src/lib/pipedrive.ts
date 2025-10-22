@@ -145,7 +145,9 @@ export async function computeMetrics(
   deals: any[],
   activities: any[],
   users: any[],
-  pipelines: any[]
+  pipelines: any[],
+  startDateStr?: string,
+  endDateStr?: string
 ): Promise<DealMetrics> {
   // Create user and pipeline maps
   const userMap = new Map(users.map((u: any) => [u.id, u.name]));
@@ -159,6 +161,12 @@ export async function computeMetrics(
   const today = new Date(saoPauloTime.toDateString());
   const yesterday = new Date(today);
   yesterday.setDate(yesterday.getDate() - 1);
+  
+  // Use provided date range or default to current month
+  const periodStart = startDateStr ? new Date(startDateStr) : new Date(saoPauloTime.getFullYear(), saoPauloTime.getMonth(), 1);
+  const periodEnd = endDateStr ? new Date(endDateStr) : new Date(saoPauloTime.getFullYear(), saoPauloTime.getMonth() + 1, 0);
+  periodStart.setHours(0, 0, 0, 0);
+  periodEnd.setHours(23, 59, 59, 999);
   
   const monthStart = new Date(saoPauloTime.getFullYear(), saoPauloTime.getMonth(), 1);
   const monthEnd = new Date(saoPauloTime.getFullYear(), saoPauloTime.getMonth() + 1, 0);
@@ -180,6 +188,11 @@ export async function computeMetrics(
     return date >= monthStart && date <= monthEnd;
   };
 
+  const isInPeriod = (date: Date | null) => {
+    if (!date) return false;
+    return date >= periodStart && date <= periodEnd;
+  };
+
   // Process deals
   const dealsWithDates = deals.map((deal: any) => ({
     ...deal,
@@ -191,28 +204,30 @@ export async function computeMetrics(
     stage_change_time_date: parseDate(deal.stage_change_time),
   }));
 
-  // Calculate metrics
-  const newToday = dealsWithDates.filter((d: any) => isSameDay(d.add_time_date, today));
-  const wonToday = dealsWithDates.filter((d: any) => d.status === 'won' && isSameDay(d.won_time_date, today));
-  const wonYesterday = dealsWithDates.filter((d: any) => d.status === 'won' && isSameDay(d.won_time_date, yesterday));
-  const wonThisMonth = dealsWithDates.filter((d: any) => d.status === 'won' && isInMonth(d.won_time_date));
-  const lostToday = dealsWithDates.filter((d: any) => d.status === 'lost' && isSameDay(d.update_time_date, today));
+  // Calculate metrics based on period
+  const newInPeriod = dealsWithDates.filter((d: any) => isInPeriod(d.add_time_date));
+  const wonInPeriod = dealsWithDates.filter((d: any) => d.status === 'won' && isInPeriod(d.won_time_date));
+  const lostInPeriod = dealsWithDates.filter((d: any) => d.status === 'lost' && isInPeriod(d.update_time_date));
   
-  const movedToday = dealsWithDates.filter((d: any) => isSameDay(d.stage_change_time_date, today));
-  const scheduled = movedToday.filter((d: any) => d.stage_id === 40).length;
-  const noShow = movedToday.filter((d: any) => d.stage_id === 39).length;
-  const realizedSuccessfully = movedToday.filter((d: any) => 
+  // Meetings metrics for the period
+  const movedInPeriod = dealsWithDates.filter((d: any) => isInPeriod(d.stage_change_time_date));
+  const scheduled = movedInPeriod.filter((d: any) => d.stage_id === 40).length;
+  const noShow = movedInPeriod.filter((d: any) => d.stage_id === 39).length;
+  const realizedSuccessfully = movedInPeriod.filter((d: any) => 
     [7, 8, 9].includes(d.stage_id) || d.status === 'won'
   ).length;
+  
+  // Keep monthly stats for compatibility
+  const wonThisMonth = dealsWithDates.filter((d: any) => d.status === 'won' && isInMonth(d.won_time_date));
 
   // Meetings analysis
   const meetingsAll = dealsWithDates.filter((d: any) => d.stage_id === 40);
-  const meetingsCreatedThisMonth = meetingsAll.filter((d: any) => isInMonth(d.add_time_date)).length;
-  const meetingsUpdatedThisMonth = meetingsAll.filter((d: any) => isInMonth(d.update_time_date)).length;
+  const meetingsCreatedInPeriod = meetingsAll.filter((d: any) => isInPeriod(d.add_time_date)).length;
+  const meetingsUpdatedInPeriod = meetingsAll.filter((d: any) => isInPeriod(d.update_time_date)).length;
 
-  // Monthly stats by owner
+  // Stats by owner for the period
   const ownerStats = new Map<string, { count: number; value: number }>();
-  wonThisMonth.forEach((deal: any) => {
+  wonInPeriod.forEach((deal: any) => {
     const owner = deal.owner_name;
     const current = ownerStats.get(owner) || { count: 0, value: 0 };
     ownerStats.set(owner, {
@@ -229,9 +244,9 @@ export async function computeMetrics(
     }))
     .sort((a, b) => b.total_value - a.total_value);
 
-  // Monthly stats by pipeline
+  // Stats by pipeline for the period
   const pipelineStats = new Map<string, { count: number; value: number }>();
-  wonThisMonth.forEach((deal: any) => {
+  wonInPeriod.forEach((deal: any) => {
     const pipeline = deal.pipeline_name;
     const current = pipelineStats.get(pipeline) || { count: 0, value: 0 };
     pipelineStats.set(pipeline, {
@@ -273,25 +288,25 @@ export async function computeMetrics(
 
   return {
     general: {
-      new_count: newToday.length,
-      new_value: newToday.reduce((sum: number, d: any) => sum + (d.value || 0), 0),
-      won_count: wonToday.length,
-      won_value: wonToday.reduce((sum: number, d: any) => sum + (d.value || 0), 0),
-      lost_count: lostToday.length,
-      lost_value: lostToday.reduce((sum: number, d: any) => sum + (d.value || 0), 0),
+      new_count: newInPeriod.length,
+      new_value: newInPeriod.reduce((sum: number, d: any) => sum + (d.value || 0), 0),
+      won_count: wonInPeriod.length,
+      won_value: wonInPeriod.reduce((sum: number, d: any) => sum + (d.value || 0), 0),
+      lost_count: lostInPeriod.length,
+      lost_value: lostInPeriod.reduce((sum: number, d: any) => sum + (d.value || 0), 0),
       scheduled,
       no_show: noShow,
       realized_successfully: realizedSuccessfully,
       monthly_won_count: wonThisMonth.length,
       monthly_won_value: wonThisMonth.reduce((sum: number, d: any) => sum + (d.value || 0), 0),
-      yesterday_won_count: wonYesterday.length,
-      yesterday_won_value: wonYesterday.reduce((sum: number, d: any) => sum + (d.value || 0), 0),
+      yesterday_won_count: 0, // Not used in period mode
+      yesterday_won_value: 0, // Not used in period mode
       current_month: saoPauloTime.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }),
       days_in_month: saoPauloTime.getDate(),
       days_remaining: daysRemaining,
       meetings_scheduled_stage: meetingsAll.length,
-      meetings_created_this_month: meetingsCreatedThisMonth,
-      meetings_updated_this_month: meetingsUpdatedThisMonth,
+      meetings_created_this_month: meetingsCreatedInPeriod,
+      meetings_updated_this_month: meetingsUpdatedInPeriod,
       meetings_scheduled_activities: 0, // Will be calculated from activities
       total_meetings_scheduled: meetingsAll.length,
     },
@@ -301,7 +316,7 @@ export async function computeMetrics(
     by_owner: [],
     closing_pipeline_summary,
     lost_reasons: [],
-    new_deals_list: newToday.map((d: any) => ({
+    new_deals_list: newInPeriod.map((d: any) => ({
       title: d.title || 'Sem título',
       value: d.value || 0,
       owner_name: d.owner_name,
